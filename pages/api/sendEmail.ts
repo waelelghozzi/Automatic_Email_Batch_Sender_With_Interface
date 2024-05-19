@@ -13,7 +13,6 @@ export const config = {
 
 interface FormFields {
   link1: string;
-  link2: string;
   fromEmail: string;
   password: string;
   smtpServer: string;
@@ -33,7 +32,6 @@ interface File {
 interface Files {
   emailListFile: File;
   imageFolder: File;
-  // Add any other file fields you expect in the form data
 }
 
 const parseForm = async (req: NextApiRequest): Promise<{ fields: FormFields; files: Files }> => {
@@ -52,7 +50,6 @@ const sendEmailWithImageAndLinks = async (
   emailList: string[],
   imageFolder: string,
   link1: string,
-  link2: string,
   fromEmail: string,
   password: string,
   smtpServer: string,
@@ -70,9 +67,7 @@ const sendEmailWithImageAndLinks = async (
     },
   });
 
-  const htmlBody = body
-    .replace('{link1}', link1)
-    .replace('{link2}', link2);
+  const htmlBody = body.replace('{link1}', link1);
 
   const msg = {
     from: fromEmail,
@@ -92,15 +87,13 @@ const sendEmailWithImageAndLinks = async (
 
   const imgData = fs.readFileSync(imageFilePath);
 
-  msg.attachments = [
-    {
-      filename: imageFilename,
-      content: imgData,
-    },
-  ];
+  msg.attachments.push({
+    filename: imageFilename,
+    content: imgData,
+  });
 
   await transporter.sendMail(msg);
-  console.log(`Email sent to: ${toEmail} with image and links: ${link1}, ${link2}`);
+  console.log(`Email sent to: ${toEmail} with image and link: ${link1}`);
 };
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -111,10 +104,9 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const { fields, files } = await parseForm(req);
 
-    const emailListFile = files.emailListFile.path;
-    const imageFolder = files.imageFolder.path;
+    const emailListFilePath = files.emailListFile.path;
+    const imageFolderPath = files.imageFolder.path;
     const link1 = fields.link1 as string;
-    const link2 = fields.link2 as string;
     const fromEmail = fields.fromEmail as string;
     const password = fields.password as string;
     const smtpServer = fields.smtpServer as string;
@@ -125,19 +117,26 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       return res.status(400).json({ error: 'Invalid from email address' });
     }
 
-    if (!emailListFile || !imageFolder || !link1 || !link2 || !fromEmail || !password || !smtpServer || !smtpPort) {
+    if (
+      !emailListFilePath ||
+      !imageFolderPath ||
+      !link1 ||
+      !fromEmail ||
+      !password ||
+      !smtpServer ||
+      !smtpPort
+    ) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const emailList = fs.readFileSync(emailListFile, 'utf-8').split('\n');
+    const emailList = fs.readFileSync(emailListFilePath, 'utf-8').split('\n');
 
     for (const toEmail of emailList) {
       await sendEmailWithImageAndLinks(
         toEmail.trim(),
         emailList,
-        imageFolder,
+        imageFolderPath,
         link1,
-        link2,
         fromEmail,
         password,
         smtpServer,
