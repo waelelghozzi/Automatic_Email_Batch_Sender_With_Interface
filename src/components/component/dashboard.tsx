@@ -1,18 +1,64 @@
 "use client";
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import axios from 'axios';
 
 export default function Dashboard() {
   const [showFileUpload, setShowFileUpload] = useState(true);
+  const [config, setConfig] = useState({
+    link: '',
+    fromEmail: '',
+    password: '',
+    smtpServer: '',
+    smtpPort: '',
+    subject: '',
+    body: '',
+  });
 
   const toggleView = () => {
     setShowFileUpload((prev) => !prev);
   };
 
+  const handleChange = (e:any) => {
+    const { name, value } = e.target;
+    setConfig((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e:any) => {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append('link', config.link);
+    formData.append('fromEmail', config.fromEmail);
+    formData.append('password', config.password);
+    formData.append('smtpServer', config.smtpServer);
+    formData.append('smtpPort', config.smtpPort);
+    formData.append('subject', config.subject);
+    formData.append('body', config.body);
+    // Append emailListFile
+    formData.append('listMail', e.target.emailListFile.files[0]);
+    
+    // Handle multiple files for imageFolder
+    const imageFiles = e.target.imageFolder.files;
+    for (let i = 0; i < imageFiles.length; i++) {
+      formData.append(`imageFolder_${i}`, imageFiles[i]);
+    }
+
+    try {
+      const response = await axios.post('/api/sendEmails', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      console.log(response.data);
+    } catch (error) {
+      console.error('Error sending emails:', error);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-8 p-8">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8 p-8">
       <div className="flex flex-col gap-4">
         <h1 className="text-3xl font-bold">MailFlow</h1>
         <p className="text-gray-500 dark:text-gray-400">
@@ -23,13 +69,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Upload File</h2>
+            <h2 className="text-lg font-medium">Upload List of Attachments</h2>
             <Button size="sm" variant="outline">
-              <FolderIcon className="h-4 w-4" />
-              Browse
+              <FolderIcon className="h-4 w-4"/>
+               Browse
             </Button>
           </div>
-          <Input className="w-full" type="file" />
+          <Input className="w-full" type="file" id="attachementsList" name="attachementsList" multiple />
         </div>
         <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -42,10 +88,12 @@ export default function Dashboard() {
                   <EmailIcon className="h-4 w-4" />
                 )}
               </Button>
-              <Button size="sm" variant="outline">
-                <PlusIcon className="h-4 w-4" />
+              {!showFileUpload ? (<div></div>) : (
+               <Button size="sm" variant="outline">
+               <PlusIcon className="h-4 w-4" />
                 Add
-              </Button>
+               </Button>
+              )}
             </div>
           </div>
           {showFileUpload ? (
@@ -54,15 +102,28 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid gap-2">
-              <Input className="w-full" type="file" />
+              {/* Modify the input to accept multiple files */}
+              <Input className="w-full" type="file" id="listMail" name="listMail" multiple />
             </div>
           )}
         </div>
       </div>
       <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">
+        <h2 className="text-lg font-medium">Configuration</h2>
+        <div className="flex flex-col gap-2">
+          <Input placeholder="From Email" name="fromEmail" value={config.fromEmail} onChange={handleChange} />
+          <Input placeholder="Password" name="password" type="password" value={config.password} onChange={handleChange} />
+          <Input placeholder="SMTP Server" name="smtpServer" value={config.smtpServer} onChange={handleChange} />
+          <Input placeholder="SMTP Port" name="smtpPort" value={config.smtpPort} onChange={handleChange} />
+          <Input placeholder="Subject" name="subject" value={config.subject} onChange={handleChange} />
+          <Input placeholder="Email Body" name="body" value={config.body} onChange={handleChange} />
+          <Input placeholder="Add a Link" name="link" value={config.link} onChange={handleChange} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Status</h2>
-          <Button variant="default">
+          <Button type="submit" variant="default" >
             <SendIcon className="h-4 w-4" />
             Send
           </Button>
@@ -82,7 +143,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </form>
   );
 }
 
