@@ -3,11 +3,46 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import axios from 'axios';
+import formidable, { IncomingForm } from 'formidable';
+
+interface FormFields {
+  link1: string;
+  fromEmail: string;
+  password: string;
+  smtpServer: string;
+  smtpPort: string;
+  subject: string;
+  body: string;
+}
+
+interface File {
+  path: string;
+  name: string;
+  type: string;
+  size: number;
+  lastModifiedDate: Date;
+}
+
+interface Files {
+  emailListFile: File;
+  imageFolder: File;
+}
+
+const parseForm = async (req: any): Promise<{ fields: FormFields; files: Files }> => {
+  const form = new IncomingForm({ multiples: true, uploadDir: './uploads', keepExtensions: true });
+
+  return new Promise((resolve, reject) => {
+    form.parse(req, (err, fields, files) => {
+      if (err) reject(err);
+      resolve({ fields: fields as unknown as FormFields, files: files as unknown as Files });
+    });
+  });
+};
 
 export default function Dashboard() {
   const [showFileUpload, setShowFileUpload] = useState(true);
   const [config, setConfig] = useState({
-    link: '',
+    link1: '',
     fromEmail: '',
     password: '',
     smtpServer: '',
@@ -20,33 +55,19 @@ export default function Dashboard() {
     setShowFileUpload((prev) => !prev);
   };
 
-  const handleChange = (e:any) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     setConfig((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e:any) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    const formData = new FormData();
-    formData.append('link', config.link);
-    formData.append('fromEmail', config.fromEmail);
-    formData.append('password', config.password);
-    formData.append('smtpServer', config.smtpServer);
-    formData.append('smtpPort', config.smtpPort);
-    formData.append('subject', config.subject);
-    formData.append('body', config.body);
-    // Append emailListFile
-    formData.append('listMail', e.target.emailListFile.files[0]);
-    
-    // Handle multiple files for imageFolder
-    const imageFiles = e.target.imageFolder.files;
-    for (let i = 0; i < imageFiles.length; i++) {
-      formData.append(`imageFolder_${i}`, imageFiles[i]);
-    }
+    const formData = new FormData(event.currentTarget);
 
     try {
-      const response = await axios.post('/api/sendEmails', formData, {
+      const { fields, files } = await parseForm(event.currentTarget);
+      const response = await axios.post('/api/sendEmail', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -62,7 +83,7 @@ export default function Dashboard() {
       <div className="flex flex-col gap-4">
         <h1 className="text-3xl font-bold">MailFlow</h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Welcome to MailFlow!<br/>
+          Welcome to MailFlow!<br />
           MailFlow streamlines sending large batches of emails with personalized attachments. Effortlessly attach specific images or documents to each recipient and experience efficient, easy file sending with just a few clicks.
         </p>
       </div>
@@ -71,8 +92,8 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium">Upload List of Attachments</h2>
             <Button size="sm" variant="outline">
-              <FolderIcon className="h-4 w-4"/>
-               Browse
+              <FolderIcon className="h-4 w-4" />
+              Browse
             </Button>
           </div>
           <Input className="w-full" type="file" id="attachementsList" name="attachementsList" multiple />
@@ -89,10 +110,10 @@ export default function Dashboard() {
                 )}
               </Button>
               {!showFileUpload ? (<div></div>) : (
-               <Button size="sm" variant="outline">
-               <PlusIcon className="h-4 w-4" />
-                Add
-               </Button>
+                <Button size="sm" variant="outline">
+                  <PlusIcon className="h-4 w-4" />
+                  Add
+                </Button>
               )}
             </div>
           </div>
@@ -117,13 +138,13 @@ export default function Dashboard() {
           <Input placeholder="SMTP Port" name="smtpPort" value={config.smtpPort} onChange={handleChange} />
           <Input placeholder="Subject" name="subject" value={config.subject} onChange={handleChange} />
           <Input placeholder="Email Body" name="body" value={config.body} onChange={handleChange} />
-          <Input placeholder="Add a Link" name="link" value={config.link} onChange={handleChange} />
+          <Input placeholder="Add a Link" name="link1" value={config.link1} onChange={handleChange} />
         </div>
       </div>
       <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Status</h2>
-          <Button type="submit" variant="default" >
+          <Button type="submit" variant="default">
             <SendIcon className="h-4 w-4" />
             Send
           </Button>
@@ -147,7 +168,7 @@ export default function Dashboard() {
   );
 }
 
-function CheckIcon(props:any) {
+function CheckIcon(props: any) {
   return (
     <svg
       {...props}
@@ -166,7 +187,7 @@ function CheckIcon(props:any) {
   );
 }
 
-function ClockIcon(props:any) {
+function ClockIcon(props: any) {
   return (
     <svg
       {...props}
@@ -186,7 +207,7 @@ function ClockIcon(props:any) {
   );
 }
 
-function FolderIcon(props:any) {
+function FolderIcon(props: any) {
   return (
     <svg
       {...props}
@@ -205,7 +226,7 @@ function FolderIcon(props:any) {
   );
 }
 
-function PlusIcon(props:any) {
+function PlusIcon(props: any) {
   return (
     <svg
       {...props}
@@ -225,7 +246,7 @@ function PlusIcon(props:any) {
   );
 }
 
-function SendIcon(props:any) {
+function SendIcon(props: any) {
   return (
     <svg
       {...props}
@@ -245,7 +266,7 @@ function SendIcon(props:any) {
   );
 }
 
-function XIcon(props:any) {
+function XIcon(props: any) {
   return (
     <svg
       {...props}
@@ -265,7 +286,7 @@ function XIcon(props:any) {
   );
 }
 
-function FileIcon(props:any) {
+function FileIcon(props: any) {
   return (
     <svg
       {...props}
@@ -285,7 +306,7 @@ function FileIcon(props:any) {
   );
 }
 
-function EmailIcon(props:any) {
+function EmailIcon(props: any) {
   return (
     <svg
       {...props}

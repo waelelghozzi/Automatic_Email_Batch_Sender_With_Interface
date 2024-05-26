@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
-import formidable from 'formidable';
+import formidable, { IncomingForm } from 'formidable';
 import validator from 'validator';
 
 export const config = {
@@ -23,10 +23,6 @@ interface FormFields {
 
 interface File {
   path: string;
-  name: string;
-  type: string;
-  size: number;
-  lastModifiedDate: Date;
 }
 
 interface Files {
@@ -35,12 +31,34 @@ interface Files {
 }
 
 const parseForm = async (req: NextApiRequest): Promise<{ fields: FormFields; files: Files }> => {
-  const form = new formidable.IncomingForm({ multiples: true, uploadDir: './uploads', keepExtensions: true });
-
   return new Promise((resolve, reject) => {
+    const form = new IncomingForm({ uploadDir: './uploads', allowEmptyFiles: true });
+    
     form.parse(req, (err, fields, files) => {
-      if (err) reject(err);
-      resolve({ fields: fields as unknown as FormFields, files: files as unknown as Files });
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve({
+        fields: {
+          link1: fields.link1 ? fields.link1[0] : '',
+          fromEmail: fields.fromEmail ? fields.fromEmail[0] : '',
+          password: fields.password ? fields.password[0] : '',
+          smtpServer: fields.smtpServer ? fields.smtpServer[0] : '',
+          smtpPort: fields.smtpPort ? fields.smtpPort[0] : '',
+          subject: fields.subject ? fields.subject[0] : '',
+          body: fields.body ? fields.body[0] : '',
+        },
+        files: {
+          emailListFile: {
+            path: files.emailListFile ? files.emailListFile[0].filepath : '',
+          },
+          imageFolder: {
+            path: files.imageFolder ? files.imageFolder[0].filepath : '',
+          },
+        },
+      });
     });
   });
 };
@@ -81,16 +99,19 @@ const sendEmailWithImageAndLinks = async (
   const imageFilename = `${index + 1}.jpg`;
   const imageFilePath = path.join(imageFolder, imageFilename);
 
-  if (!fs.existsSync(imageFilePath)) {
-    throw new Error(`Image file not found for ${toEmail}`);
+  let imgData = null;
+  if (fs.existsSync(imageFilePath)) {
+    imgData = fs.readFileSync(imageFilePath);
+  } else {
+    console.error(`Image file not found for ${toEmail} at path: ${imageFilePath}`);
   }
 
-  const imgData = fs.readFileSync(imageFilePath);
-
-  msg.attachments.push({
-    filename: imageFilename,
-    content: imgData,
-  });
+  if (imgData) {
+    msg.attachments.push({
+      filename: imageFilename,
+      content: imgData,
+    });
+  }
 
   await transporter.sendMail(msg);
   console.log(`Email sent to: ${toEmail} with image and link: ${link1}`);
@@ -98,7 +119,8 @@ const sendEmailWithImageAndLinks = async (
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   try {
@@ -106,27 +128,20 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
     const emailListFilePath = files.emailListFile.path;
     const imageFolderPath = files.imageFolder.path;
-    const link1 = fields.link1 as string;
-    const fromEmail = fields.fromEmail as string;
-    const password = fields.password as string;
-    const smtpServer = fields.smtpServer as string;
-    const smtpPort = parseInt(fields.smtpPort as string, 10);
+    const link1 = fields.link1;
+    const fromEmail = fields.fromEmail;
+    const password = fields.password;
+    const smtpServer = fields.smtpServer;
+    const smtpPort = parseInt(fields.smtpPort, 10);
 
-    // Validate form fields
     if (!validator.isEmail(fromEmail)) {
-      return res.status(400).json({ error: 'Invalid from email address' });
+      res.status(400).json({ error: 'Invalid from email address' });
+      return;
     }
 
-    if (
-      !emailListFilePath ||
-      !imageFolderPath ||
-      !link1 ||
-      !fromEmail ||
-      !password ||
-      !smtpServer ||
-      !smtpPort
-    ) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!emailListFilePath || !imageFolderPath || !link1 || !fromEmail || !password || !smtpServer || !smtpPort) {
+      res.status(400).json({ error: 'All fields are required' });
+      return;
     }
 
     const emailList = fs.readFileSync(emailListFilePath, 'utf-8').split('\n');
@@ -141,8 +156,8 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         password,
         smtpServer,
         smtpPort,
-        fields.subject as string,
-        fields.body as string
+        fields.subject,
+        fields.body
       );
     }
 
